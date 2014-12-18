@@ -1,0 +1,27 @@
+@(name: String, paginator: Paginator[Game], next: Option[Call], menu: Html, extraTop: Option[Html] = None)(implicit ctx: Context)
+
+@title = @{ "%s - page %d".format(name, paginator.currentPage) }
+
+@moreJs = {
+@jsTag("vendor/jquery.infinitescroll.min.js")
+}
+
+@game.layout(
+title = title,
+moreJs = moreJs,
+menu = menu.some) {
+<div class="content_box no_padding">
+  @extraTop.map { extra =>
+  <div class="extra_top">@extra</div>
+  }
+  <h1 class="title">@name</h1>
+  <div class="all_games infinitescroll">
+    @next.map { n =>
+    <div class="pager none"><a href="@n">Next</a></div>
+    }.getOrElse {
+    <div class="none"></div>
+    }
+    @game.widgets(paginator.currentPageResults)
+  </div>
+</div>
+}

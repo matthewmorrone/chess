@@ -1,0 +1,220 @@
+@(u: User, info: lila.app.mashup.UserInfo, games: Paginator[Game], filters: lila.app.mashup.GameFilterMenu, rel: Option[lila.relation.Relation], notes: List[lila.user.Note], followable: Boolean, blocked: Boolean)(implicit ctx: Context)
+
+@title = @{ s"${u.username} : ${userGameFilterTitleNoTag(info, filters.current)}${if(games.currentPage == 1) "" else " - page " + games.currentPage}" }
+
+@evenMoreJs = {
+@highchartsTag
+@highchartsMoreTag
+@jsTagCompiled("chart2.js")
+}
+
+@showPerf(name: String, perf: lila.rating.Perf) = {
+<div>
+  <h3 @lila.user.Perfs.titles.get(name).map { title =>
+    class="hint--bottom" data-hint="@title"
+    }>@if(name == "puzzle") {TRAINING} else {@name.toUpperCase}</h3>
+  <strong class="hint--bottom" data-hint="Glicko rating">@perf.glicko.intRating</strong>
+  <small class="hint--bottom" data-hint="Glicko rating deviation"> ±@perf.glicko.intDeviationDoubled</small> /
+  <span class="hint--bottom" data-hint="Number of games played">
+    @perf.nb.localize @if(name == "puzzle") {Puzzles} else {@trans.games()}
+  </span>
+</div>
+}
+
+@goodies = {
+<div class="goodies sub_ratings">
+  @showPerf("global", u.perfs.global)
+  <br />
+  @showPerf("standard", u.perfs.standard)
+  @showPerf("chess960", u.perfs.chess960)
+  <br />
+  @u.perfs.pools.toList.sortBy(_._1).map {
+  case (id, perf) => {
+  @poolSetups.get(id).map { setup =>
+  @showPerf(s"${setup.name} pool", perf)
+  }
+  }
+  }
+  @if(u.perfs.pools.nonEmpty) {
+  <br />
+  }
+  @showPerf("bullet", u.perfs.bullet)
+  @showPerf("blitz", u.perfs.blitz)
+  @showPerf("slow", u.perfs.slow)
+  <br />
+  @showPerf("white", u.perfs.white)
+  @showPerf("black", u.perfs.black)
+  <br />
+  @showPerf("puzzle", u.perfs.puzzle)
+</div>
+}
+
+@user.layout(
+title = title,
+goodies = goodies.some,
+robots = false,
+evenMoreJs = evenMoreJs,
+openGraph = Map(
+    'type -> "website",
+    'image -> staticUrl("images/large_tile.png"),
+    'title -> u.titleUsernameWithRating,
+    'site_name -> "lichess.org",
+    'url -> s"$netBaseUrl${routes.User.show(u.username).url}",
+    'description -> describeUser(u))) {
+<div class="content_box no_padding user_show">
+  <div class="content_box_top">
+    @if(info.rank.map(_._1).exists(1==)) {
+    <span class="trophy hint--left" data-hint="Lichess champion">
+      <img src="@staticUrl("images/best64.png")" width=64 height=64 />
+    </span>
+    } else {
+    @if(info.rank.exists(r => r._1 < r._2 / 100)) {
+    <span class="trophy hint--left" data-hint="Top 1% player">
+      <img src="@staticUrl("images/trophy64.png")" width=50 height=50 />
+    </span>
+    }
+    @if(info.rank.exists(r => r._1 < r._2 / 1000)) {
+    <span class="trophy hint--left" data-hint="Top 0.1% player">
+      <img src="@staticUrl("images/trophy64.png")" width=64 height=64 />
+    </span>
+    }
+    }
+    <h1 class="lichess_title"><span@if(isOnline(u.id)) { class="connected" } data-icon="r"></span> @u.username</h1>
+    <span class="rating">RATING <strong class="hint--bottom" data-hint="Glicko rating">@u.rating</strong><small class="hint--bottom" data-hint="Glicko rating deviation"> ±@u.perfs.global.glicko.intDeviationDoubled</small></span>
+    @showProgress(u.progress)
+    @info.rank.map { r =>
+    <span class="rank hint--bottom" data-hint="@trans.rank()">RANK <strong>@r._1.localize</strong>/@{r._2/1000}k</span>
+    }
+    @if(u.disabled) {
+    <span class="staff">CLOSED</span>
+    }
+  </div>
+  <div class="social content_box_inter">
+    <a class="intertab" href="@routes.Relation.following(u.username)">@splitNumber(trans.nbFollowing(info.nbFollowing))</a>
+    <a class="intertab" href="@routes.Relation.followers(u.username)">@splitNumber(trans.nbFollowers(info.nbFollowers))</a>
+    @info.nbBlockers.map { nb =>
+    <a class="intertab">@splitNumber(nb + " Blockers")</a>
+    }
+    <span class="intertab">@splitNumber(u.toints + " " + trans.tournamentPoints())</span>
+    <a class="intertab" href="@routes.ForumPost.search("user:" + u.username, 1)">@splitNumber(info.nbPosts + " Forum posts")</a>
+    @if(ctx.isAuth && !ctx.is(u)) {
+    <a class="intertab note_zone_toggle">@splitNumber(notes.size + " Notes")</a>
+    }
+    <div class="relation_actions">
+      @if(ctx is u) {
+      <a class="button hint--bottom-left" href="@routes.Account.profile" data-hint="@trans.editProfile()">
+        <span data-icon="q"></span>
+      </a>
+      }
+      @if(isGranted(_.UserSpy)) {
+      <a class="button mod_zone_toggle hint--bottom-left" href="@routes.User.mod(u.username)" data-hint="Mod zone"><span data-icon="y"></span></a>
+      }
+      @if(ctx.isAuth && !ctx.is(u)) {
+      @relation.actions(u.id, relation = rel, followable = followable, blocked = blocked)
+      <a data-hint="@trans.reportXToModerators(u.username)" class="button hint--bottom-left" href="@routes.Report.form?username=@u.username">
+        <span data-icon="!"></span>
+      </a>
+      } else {
+      <form id="exportform" action="@routes.User.export(u.username)" method="POST">
+        <a class="button hint--bottom-left" onclick="document.getElementById('exportform').submit();" data-hint="@trans.exportGames()"><span data-icon="x"></span></a>
+      </form>
+      }
+    </div>
+  </div>
+  @if(!(ctx is u)) {
+  <div class="note_zone">
+    <form class="wide" action="@routes.User.writeNote(u.username)?note" method="post">
+      <textarea name="text" placeholder="Write a note about this user only you and your friends can read"></textarea>
+      <button type="submit" class="button">@trans.send()</button>
+    </form>
+    @if(notes.isEmpty) {
+    <div>No note yet</div>
+    }
+    @notes.map { note =>
+    <div>
+      <p class="meta">@userIdLink(note.from.some)<br />@momentFromNow(note.date)</p>
+      <p class="text">@autoLink(note.text)</p>
+    </div>
+    }
+  </div>
+  }
+  @if((ctx is u) && u.rating > 2500 && !u.hasTitle && !ctx.pref.hasSeenVerifyTitle ) {
+  @claimTitle(u)
+  }
+  <div class="mod_zone"></div>
+  <div class="meat">
+    @info.ratingChart.map { ratingChart =>
+    <div class="rating_history" title="Rating history" data-rows="@ratingChart">
+      <span>Chart loading&#8230;</span>
+    </div>
+    }
+    <div class="user-infos scroll-shadow-hard">
+      @if(u.engine && ctx.me.fold(true)(u !=)) {
+      <div class="warning engine_warning">
+        <span data-icon="j" class="is4"></span>
+        @trans.thisPlayerUsesChessComputerAssistance()
+      </div>
+      } else {
+      @u.title.flatMap(lila.user.User.titlesMap.get).map { title =>
+      <p data-icon="E" class="honorific title"> @title</p>
+      }
+      }
+      @if(info.donated >= 200) {
+      <a href="@routes.Donation.index" data-icon="t" class="honorific is-gold"> Lichess Donor</a>
+      }
+      @u.profile.map { p =>
+      @p.nonEmptyRealName.map { name =>
+      <strong class="name">@name</strong>
+      }
+      @p.nonEmptyBio.map { bio =>
+      <p class="bio">@shorten(bio, 400)</p>
+      }
+      }
+      <div class="stats">
+        @u.profileOrDefault.nonEmptyLocation.map { l =>
+        <span class="location">@l</span>,
+        }
+        @u.profileOrDefault.countryInfo.map {
+        case (code, name) => {
+        <span class="country"><img class="flag" src="@routes.Assets.at(s"images/flags/$code.png")" /> @name</span>
+        }
+        }
+        @u.lang.flatMap(langName).map { name =>
+        <span data-icon="c"> @name</span>
+        }
+        <p class="thin">@trans.memberSince() @showDate(u.createdAt)</p>
+        @u.seenAt.map { seen =>
+        <p class="thin">@trans.lastLogin() @momentFormat(seen)</p>
+        }
+        <a href="@routes.User.opponents(u.username)">@trans.favoriteOpponents()</a>
+        <br />
+        <br />
+        <p>Time spent playing: @showPeriod(info.playTime.totalPeriod)</p>
+        @info.playTime.tvPeriod.map { tvPeriod =>
+        <p>Time on TV: @showPeriod(tvPeriod)</p>
+        }
+        <div class="teams">
+          @teamIds(u.id).sortBy(t => !myTeam(t)).map { teamId =>
+          @teamLink(teamId, ("revert-underline" + myTeam(teamId).fold(" mine", "")).some)
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+  @if(u.hasGames) {
+  <div class="content_box_inter tabs">
+    @filters.list.map { f =>
+    <a class="intertab@{ (filters.current == f).??(" active") }" href="@routes.User.showFilter(u.username, f.name)">
+      @userGameFilterTitle(info, f)
+    </a>
+    }
+  </div>
+  @if(filters.current.name == "me") {
+  @info.crosstable.map { c =>
+  @game.crosstable(c)
+  }
+  }
+  @views.html.user.games(u, games, filters.current.name)
+  }
+</div>
+}

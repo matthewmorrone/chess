@@ -1,0 +1,46 @@
+@(pov: Pov, version: Int, config: Option[lila.setup.FriendConfig], userOption: Option[User])(implicit ctx: Context)
+
+@import pov._
+
+@round.layout(
+title = userOption.isDefined.fold(trans.challengeToPlay,trans.playWithAFriend).str(),
+goodies = Html(""),
+signedJs = routes.Round.signedJs(pov.gameId).toString.some) {
+<div class="lichess_game lichess_game_not_started waiting_opponent clearfix lichess_player_@color">
+  <div class="lichess_board_wrap">
+    @color.fold(board.white(), board.black())
+    <div class="lichess_overboard auto_center">
+      @userOption.map { user =>
+      <div id="challenge_await" data-user="@user.id">
+        <h2>@trans.challengeToPlay()</h2>
+        @userLink(user, cssClass="target".some)
+        <span class="loader"><span data-icon="U"></span></span>
+        <p class="explanations">
+          @trans.waitingForOpponent()<br />
+          <a href="@routes.Setup.cancel(fullId)">@trans.cancel()</a>
+        </p>
+      </div>
+      <div id="challenge_declined" class="none">
+        <h2>Challenge declined</h2>
+        <a href="@routes.Lobby.home()">@trans.playWithAnotherOpponent()</a>
+      </div>
+      }.getOrElse {
+      @trans.toInviteSomeoneToPlayGiveThisUrl():
+      <input id="lichess_id_input" class="copyable" spellcheck="false" readonly="true" value="@protocol@commonDomain@routes.Round.watcher(gameId, "white")" />
+      <p class="explanations">
+        @trans.theFirstPersonToComeOnThisUrlWillPlayWithYou()<br />
+        <a href="@routes.Setup.cancel(fullId)">@trans.cancel()</a>
+      </p>
+      }
+      @config.map { c =>
+      <p class="explanations">
+        @trans.variant(): @variantName(c.variant)<br />
+        <span data-icon="p"></span> @clockName(c.makeClock)<br />
+        @trans.mode(): @modeName(c.mode)
+      </p>
+      }
+    </div>
+  </div>
+</div>
+@embedJs("var _ld_ = " + roundPlayerJsData(pov, version, ctx.pref, apiVersion))
+}

@@ -1,0 +1,13 @@
+@(u: User, users: List[lila.relation.Related], following: Int)(implicit ctx: Context)
+
+@user.layout(title = u.username + " - " + trans.nbFollowers(users.size)) {
+<div class="content_box no_padding">
+  <h1>
+    @userLink(u, withOnline = false)
+    @trans.nbFollowers(users.size)
+    &amp;
+    <a href="@routes.Relation.following(u.username)">@trans.nbFollowing(following)</a>
+  </h1>
+  @user.simpleTable(users)
+</div>
+}

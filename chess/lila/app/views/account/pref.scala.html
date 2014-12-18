@@ -1,0 +1,75 @@
+@(u: User, form: Form[_])(implicit ctx: Context)
+
+@import lila.pref.Pref
+
+@title = @{ s"${u.username} - ${trans.preferences.str()}" }
+
+@account.layout(title = title, active = "preferences") {
+<div class="content_box small_box prefs">
+  <div class="signup_box">
+    <h1 class="lichess_title">@trans.preferences()</h1>
+    <form class="autosubmit" action="@routes.Pref.formApply" method="POST">
+      <fieldset>
+        <legend>Game display</legend>
+        <ul>
+          <li>
+            <h2>Piece animation</h2>
+            @base.radios(form("animation"), Seq(0 -> "None", 1 -> "Fast", 2 -> "Normal", 3 -> "Slow"))
+          </li>
+          <li>
+            <h2>Show captured pieces</h2>
+            @base.radios(form("captured"), Seq(0 -> "No", 1 -> "Yes"))
+          </li>
+          <li>
+            <h2>Show board highlights</h2>
+            @base.radios(form("highlight"), Seq(0 -> "No", 1 -> "Yes"))
+          </li>
+          <li>
+            <h2>Show tenths of seconds on the clock</h2>
+            @base.radios(form("clockTenths"), Seq(0 -> "Never", 1 -> "When time remaining < 10 seconds"))
+          </li>
+          <li>
+            <h2>Show horizontal green bars on the clock</h2>
+            @base.radios(form("clockBar"), Seq(0 -> "No", 1 -> "Yes"))
+          </li>
+        </ul>
+      </fieldset>
+      <fieldset>
+        <legend>Game behavior</legend>
+        <ul>
+          <li>
+            <h2>Enable premoves (playing during opponent turn)</h2>
+            @base.radios(form("premove"), Seq(0 -> "No", 1 -> "Yes"))
+          </li>
+          <li>
+            <h2>Enable takebacks (with opponent approval)</h2>
+            @base.radios(form("takeback"), Pref.Takeback.choices)
+          </li>
+          <li>
+            <h2>Automatically promote to Queen</h2>
+            @base.radios(form("autoQueen"), Pref.AutoQueen.choices)
+          </li>
+          <li>
+            <h2>Automatically claim draw on <a href="http://en.wikipedia.org/wiki/Threefold_repetition">threefold repetition</a></h2>
+            @base.radios(form("autoThreefold"), Pref.AutoThreefold.choices)
+          </li>
+        </ul>
+      </fieldset>
+      <fieldset>
+        <legend>Privacy</legend>
+        <ul>
+          <li>
+            <h2>Let other players follow you</h2>
+            @base.radios(form("follow"), Seq(0 -> "No", 1 -> "Yes"))
+          </li>
+          <li>
+            <h2>Let other players challenge you</h2>
+            @base.radios(form("challenge"), Pref.Challenge.choices)
+          </li>
+        </ul>
+      </fieldset>
+      <p data-icon="E"> Your preferences have been saved.</p>
+    </form>
+  </div>
+</div>
+}

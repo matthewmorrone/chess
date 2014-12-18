@@ -1,0 +1,11 @@
+@(tour: lila.tournament.Started, version: Int, chat: Option[lila.chat.UserChat], games: List[Game], pov: Option[Pov])(implicit ctx: Context)
+
+@tournament.show.layout(
+tour = tour,
+goodies = tournament.infoBox(tour),
+chat = chat,
+version = version,
+side = tournament.pairings(tour).some,
+title = trans.xTournament.str(tour.name)) {
+@tournament.show.startedInner(tour, games, pov)
+}

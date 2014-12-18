@@ -1,0 +1,61 @@
+@(pov: Pov, version: Int, games: List[Game], streams: List[lila.tv.StreamOnAir], tour: Option[lila.tournament.Tournament], cross: Option[lila.game.Crosstable], flip: Boolean)(implicit ctx: Context)
+
+@title = @{ s"TV ${playerText(pov.player)} vs ${playerText(pov.opponent)}" }
+
+@goodies = {
+<div class="lichess_goodies">
+  <div class="box">
+    <h2 data-icon="1">&nbsp;Lichess TV</h2>
+    <br />
+    <div class="confrontation">
+      @playerLink(pov.game.firstPlayer, withRating = false, withOnline = false, withDiff = false)
+      <em>vs</em>
+      @playerLink(pov.game.secondPlayer, withRating = false, withOnline = false, withDiff = false)
+    </div>
+    <br />
+    <span data-icon="p"> @shortClockName(pov.game.clock)</span>
+    @if(pov.game.variant.exotic) {
+    , @variantName(pov.game.variant).capitalize
+    }
+    @if(pov.game.rated) {
+    , @trans.rated()
+    }
+  </div>
+  @streamsOnAir(streams)
+  <div id="tv_history" class="undertable">
+    <div class="undertable_top">
+      <span class="title">@trans.previouslyOnLichessTV()</span>
+    </div>
+    <div class="undertable_inner scroll-shadow-soft">
+      <table>
+        <tbody>
+          @games.map { g =>
+          <tr>
+            <td><a class="view" href="@routes.Round.watcher(g.id, g.firstPlayer.color.name)" data-icon="v"></a></td>
+            <td>
+              @playerLink(g.firstPlayer, withOnline = false, withDiff = true)<br />
+              @playerLink(g.secondPlayer, withOnline = false, withDiff = true)
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="buttons">
+    <a class="flip button" data-icon="B" href="@routes.Tv.lichess()@if(!flip){?flip=1}">&nbsp;@trans.flipBoard()</a>
+  </div>
+</div>
+}
+
+@round.layout(
+title = title,
+goodies = goodies,
+underchat = game.watchers().some,
+active = siteMenu.tv.some) {
+@round.watcherGame(pov)
+@cross.map { c =>
+@game.crosstable(pov.player.userId.fold(c)(c.fromPov))
+}
+@embedJs("var _ld_ = " + roundWatcherJsData(pov, version, true, ctx.pref))
+}

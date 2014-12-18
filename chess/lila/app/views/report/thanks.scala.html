@@ -1,0 +1,16 @@
+@()(implicit ctx: Context)
+
+@title = @{ "Thanks for the report" }
+
+@site.layout(title = title, moreCss = cssTag("report.css")) {
+
+<div class="content_box small_box">
+  <h1 class="lichess_title">@title</h1>
+  <p>The moderators will review it very soon, and take appropriate action.</p>
+  <p>
+  <br />
+  <br />
+  <a href="@routes.Lobby.home">Return to lichess homepage</a>
+  </p>
+</div>
+}

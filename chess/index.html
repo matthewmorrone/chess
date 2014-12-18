@@ -1,0 +1,957 @@
+<html>
+<head>
+<title>Chess</title>
+<script src="jquery.js"></script>
+<script src="underscore.js"></script>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<style>
+canvas
+{
+	padding-left: 0;
+	padding-right: 0;
+	margin-left: auto;
+	margin-right: auto;
+	display: block;
+	width: 1024px;
+}
+</style>
+</head>
+<body>
+<canvas id="pane" width="2048" height="2048"></canvas>
+
+<script>
+
+
+function Piece(x, y, team, type)
+{
+	this.x = x;
+	this.y = y;
+	this.team = team;
+	this.type = type;
+}
+Piece.prototype.enemy = function()
+{
+	if (this.team === "white") {return "black";}
+	if (this.team === "black") {return "white";}
+}
+Piece.prototype.glyph = function()
+{
+	var glyphs = {"pawn":"♟", "knight":"♞", "bishop":"♝", "rook":"♜", "queen":"♛", "king":"♚"};
+	return glyphs[this.type];
+}
+Piece.prototype.worth = function()
+{
+	var worths = {"pawn":1, "knight":3, "bishop":3, "rook":5, "queen":9, "king":0};
+	return worths[this.type];
+}
+Piece.prototype.index = function(i)
+{
+	if (i === false)
+	{
+		var indexes = {"pawn":0, "knight":1, "bishop":2, "rook":3, "queen":4, "king":5};
+		return indexes[this.type];
+	}
+	else
+	{
+		var indexes = {0:"pawn", 1:"knight", 2:"bishop", 3:"rook", 4:"queen", 5:"king"};
+		return indexes[i];
+	}
+}
+
+// history of boards?
+function Game()
+{
+	this.history = history || [];
+}
+Game.prototype.push = function(board)
+{
+	this.history.push(board);
+}
+Game.prototype.pop = function()
+{
+	return this.history.pop();
+}
+
+
+// returns possible moves for whole board, one team, or one piece
+function Board(pieces)
+{
+	this.pieces = pieces || [];
+	this.whiteScore = 0;
+	this.blackScore = 0;
+}
+Board.prototype.initialize = function(pieces)
+{
+	for(p in pieces)
+	{
+		piece = new Piece(pieces[p][0], pieces[p][1], (pieces[p][2] === 1 ? "white" : "black"));
+		piece.type = piece.index(pieces[p][3]);
+		this.pieces.push(piece);
+	}
+}
+Board.prototype.copy = function()
+{
+	return $.extend(true, {}, this);
+}
+Board.prototype.hasPiece = function(i, j)
+{
+	for(p in this.pieces)
+	{
+		if (this.pieces[p].x === i && this.pieces[p].y === j)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+Board.prototype.getPiece = function(i, j)
+{
+	for(p in this.pieces)
+	{
+		if (this.pieces[p].x === i && this.pieces[p].y === j)
+		{
+			return this.pieces[p];
+		}
+	}
+	return new Piece(i, j, "", "");
+}
+Board.prototype.getPieces = function(team)
+{
+	var pieces = [];
+
+	for(p in this.pieces)
+	{
+		if (this.pieces[p].team === team)
+		{
+			pieces.push(this.pieces[p]);
+		}
+	}
+	return pieces;
+}
+Board.prototype.setPiece = function(i, j, team, type)
+{
+	for(p in this.pieces)
+	{
+		if (this.pieces[p].x === i && this.pieces[p].y === j)
+		{
+			this.pieces[p].team = team;
+			this.pieces[p].type = type;
+			return this.pieces[p];
+		}
+	}
+	return false;
+}
+Board.prototype.addPiece = function(i, j, team, type)
+{
+	if (this.hasPiece(i, j) === true) {return;}
+	team = team || "";
+	type = type || "";
+	this.pieces.push(new Piece(i, j, team, type));
+	return this.pieces[this.pieces.length];
+}
+Board.prototype.delPiece = function(i, j)
+{
+	for(p in this.pieces)
+	{
+		if (this.pieces[p].x === i && this.pieces[p].y === j)
+		{
+			this.pieces.splice(this.pieces.indexOf(this.pieces[p]), 1);
+			return true;
+		}
+	}
+	return false;
+}
+Board.prototype.isBlocked = function(tile1, tile2)
+{
+
+}
+Board.prototype.score = function()
+{
+	this.whiteScore = 0;
+	this.blackScore = 0;
+	for(p in this.pieces)
+	{
+		if (this.pieces[p].team === "white")
+		{
+			this.whiteScore += this.pieces[p].worth();
+		}
+		if (this.pieces[p].team === "black")
+		{
+			this.blackScore += this.pieces[p].worth();
+		}
+	}
+	// console.log(this.whiteScore, this.blackScore);
+}
+
+// if passed a specific piece, determines for that piece. else finds for all
+Board.prototype.moves = function(piece)
+{
+	var board = this;
+	var d = d || 8;
+	var results = [];
+	var finalists = [];
+	switch (piece.type)
+	{
+		case "pawn":
+			if (piece.team === "black")
+			{
+				if (!board.hasPiece(piece.x, piece.y+1))
+				{
+					results.push([piece.x, piece.y+1]);
+				}
+				if (piece.y === 1 && !board.hasPiece(piece.x, piece.y+2))
+				{
+					results.push([piece.x, piece.y+2]);
+				}
+				if (board.getPiece(piece.x-1, piece.y+1).team === "white")
+				{
+					results.push([piece.x-1, piece.y+1]);
+				}
+				if (board.getPiece(piece.x+1, piece.y+1).team === "white")
+				{
+					results.push([piece.x+1, piece.y+1]);
+				}
+			}
+			if (piece.team === "white")
+			{
+				if (!board.hasPiece(piece.x, piece.y-1))
+				{
+					results.push([piece.x, piece.y-1]);
+				}
+				if (piece.y === 6 && !board.hasPiece(piece.x, piece.y-2))
+				{
+					results.push([piece.x, piece.y-2]);
+				}
+				if (board.getPiece(piece.x-1, piece.y-1).team === "black")
+				{
+					results.push([piece.x-1, piece.y-1]);
+				}
+				if (board.getPiece(piece.x+1, piece.y-1).team === "black")
+				{
+					results.push([piece.x+1, piece.y-1]);
+				}
+			}
+			// console.log(results);
+		break;
+		case "knight":
+			results.push([piece.x-2, 	piece.y-1])
+			results.push([piece.x-2, 	piece.y+1])
+			results.push([piece.x+2, 	piece.y-1])
+			results.push([piece.x+2, 	piece.y+1])
+			results.push([piece.x-1, 	piece.y-2])
+			results.push([piece.x-1, 	piece.y+2])
+			results.push([piece.x+1, 	piece.y-2])
+			results.push([piece.x+1, 	piece.y+2])
+		break;
+		case "bishop":
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x-r, piece.y-r) === true)
+				{
+					if (board.getPiece(piece.x-r, piece.y-r).team === piece.enemy())
+					{
+						results.push([piece.x-r, piece.y-r]);
+					}
+					break;
+				}
+				results.push([piece.x-r, piece.y-r])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x+r, piece.y-r) === true)
+				{
+					if (board.getPiece(piece.x+r, piece.y-r).team === piece.enemy())
+					{
+						results.push([piece.x+r, piece.y-r]);
+					}
+					break;
+				}
+				results.push([piece.x+r, piece.y-r])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x-r, piece.y+r) === true)
+				{
+					if (board.getPiece(piece.x-r, piece.y+r).team === piece.enemy())
+					{
+						results.push([piece.x-r, piece.y+r]);
+					}
+					break;
+				}
+				results.push([piece.x-r, piece.y+r])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x+r, piece.y+r) === true)
+				{
+					if (board.getPiece(piece.x+r, piece.y+r).team === piece.enemy())
+					{
+						results.push([piece.x+r, piece.y+r]);
+					}
+					break;
+				}
+				results.push([piece.x+r, piece.y+r])
+			}
+		break;
+		case "rook":
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x, piece.y-r) === true)
+				{
+					if (board.getPiece(piece.x, piece.y-r).team === piece.enemy())
+					{
+						results.push([piece.x, piece.y-r]);
+					}
+					break;
+				}
+				results.push([piece.x, piece.y-r])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x, piece.y+r) === true)
+				{
+					if (board.getPiece(piece.x, piece.y+r).team === piece.enemy())
+					{
+						results.push([piece.x, piece.y+r]);
+					}
+					break;
+				}
+				results.push([piece.x, piece.y+r])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x-r, piece.y) === true)
+				{
+					if (board.getPiece(piece.x-r, piece.y).team === piece.enemy())
+					{
+						results.push([piece.x-r, piece.y]);
+					}
+					break;
+				}
+				results.push([piece.x-r, piece.y])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x+r, piece.y) === true)
+				{
+					if (board.getPiece(piece.x+r, piece.y).team === piece.enemy())
+					{
+						results.push([piece.x+r, piece.y]);
+					}
+					break;
+				}
+				results.push([piece.x+r, piece.y])
+			}
+		break;
+		case "queen":
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x-r, piece.y-r) === true)
+				{
+					if (board.getPiece(piece.x-r, piece.y-r).team === piece.enemy())
+					{
+						results.push([piece.x-r, piece.y-r]);
+					}
+					break;
+				}
+				results.push([piece.x-r, piece.y-r])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x+r, piece.y-r) === true)
+				{
+					if (board.getPiece(piece.x+r, piece.y-r).team === piece.enemy())
+					{
+						results.push([piece.x+r, piece.y-r]);
+					}
+					break;
+				}
+				results.push([piece.x+r, piece.y-r])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x-r, piece.y+r) === true)
+				{
+					if (board.getPiece(piece.x-r, piece.y+r).team === piece.enemy())
+					{
+						results.push([piece.x-r, piece.y+r]);
+					}
+					break;
+				}
+				results.push([piece.x-r, piece.y+r])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x+r, piece.y+r) === true)
+				{
+					if (board.getPiece(piece.x+r, piece.y+r).team === piece.enemy())
+					{
+						results.push([piece.x+r, piece.y+r]);
+					}
+					break;
+				}
+				results.push([piece.x+r, piece.y+r])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x, piece.y-r) === true)
+				{
+					if (board.getPiece(piece.x, piece.y-r).team === piece.enemy())
+					{
+						results.push([piece.x, piece.y-r]);
+					}
+					break;
+				}
+				results.push([piece.x, piece.y-r])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x, piece.y+r) === true)
+				{
+					if (board.getPiece(piece.x, piece.y+r).team === piece.enemy())
+					{
+						results.push([piece.x, piece.y+r]);
+					}
+					break;
+				}
+				results.push([piece.x, piece.y+r])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x-r, piece.y) === true)
+				{
+					if (board.getPiece(piece.x-r, piece.y).team === piece.enemy())
+					{
+						results.push([piece.x-r, piece.y]);
+					}
+					break;
+				}
+				results.push([piece.x-r, piece.y])
+			}
+			for(var r = 1; r < d; r++)
+			{
+				if (board.hasPiece(piece.x+r, piece.y) === true)
+				{
+					if (board.getPiece(piece.x+r, piece.y).team === piece.enemy())
+					{
+						results.push([piece.x+r, piece.y]);
+					}
+					break;
+				}
+				results.push([piece.x+r, piece.y])
+			}
+
+		break;
+		case "king":
+			results.push([piece.x-1, 	piece.y-1]);
+			results.push([piece.x, 		piece.y-1]);
+			results.push([piece.x+1, 	piece.y-1]);
+			results.push([piece.x+1, 	piece.y]);
+			results.push([piece.x+1, 	piece.y+1]);
+			results.push([piece.x, 		piece.y+1]);
+			results.push([piece.x-1, 	piece.y+1]);
+			results.push([piece.x-1, 	piece.y]);
+
+			if 	(	piece.y === 0
+				&& 	piece.team === "black"
+				&& 	board.getPiece(7, piece.y).type === "rook"
+				&& 	!board.hasPiece(6, piece.y)
+				&& 	!board.hasPiece(5, piece.y)
+				)
+			{
+				results.push([piece.x+2, 		piece.y]);
+			}
+			if 	(	piece.y === 0
+				&& 	piece.team === "black"
+				&& 	board.getPiece(0, piece.y).type === "rook"
+				&& 	!board.hasPiece(1, piece.y)
+				&& 	!board.hasPiece(2, piece.y)
+				&& 	!board.hasPiece(3, piece.y)
+				)
+			{
+				results.push([piece.x-3, 		piece.y]);
+			}
+			if (	piece.y === 7
+				&& 	piece.team === "white"
+				&& 	board.getPiece(7, piece.y).type === "rook"
+				&& 	!board.hasPiece(6, piece.y)
+				&& 	!board.hasPiece(5, piece.y)
+				)
+			{
+				results.push([piece.x+2, 		piece.y]);
+			}
+			if (	piece.y === 7
+				&& 	piece.team === "white"
+				&& 	board.getPiece(0, piece.y).type === "rook"
+				&& 	!board.hasPiece(1, piece.y)
+				&& 	!board.hasPiece(2, piece.y)
+				&& 	!board.hasPiece(3, piece.y)
+				)
+			{
+				results.push([piece.x-3, 		piece.y]);
+			}
+		break;
+	}
+	// console.log(results);
+
+	for(var r = 0; r < results.length; r++)
+	{
+		if (results[r][0] === piece.x 	&& results[r][1] === piece.y) 	{continue;}
+		if (results[r][0] < 0 			|| results[r][0] >= d) 			{continue;}
+		if (results[r][1] < 0 			|| results[r][1] >= d) 			{continue;}
+		if (board.getPiece(results[r][0], results[r][1]).team === piece.team) {continue;}
+		finalists.push(results[r]);
+	}
+	// results = $.grep(results, function(a){return a !== "";})
+	return finalists;
+}
+
+Board.prototype.move = function(tile1, tile2)
+{
+	this.delPiece(tile1.x, tile1.y);
+	this.delPiece(tile2.x, tile2.y);
+	this.addPiece(tile2.x, tile2.y, tile1.team, tile1.type);
+
+	if (tile1.type === "pawn")
+	{
+		if (tile1.team === "white" && tile2.y === 0)
+		{
+			this.delPiece(tile2.x, tile2.y);
+			this.addPiece(tile2.x, tile2.y, tile1.team, "queen");
+		}
+		else if (tile1.team === "black" && tile2.y === 7)
+		{
+			this.delPiece(tile2.x, tile2.y);
+			this.addPiece(tile2.x, tile2.y, tile1.team, "queen");
+		}
+	}
+	else if (tile1.type === "king")
+	{
+		if(tile2.x-tile1.x > 1 && tile1.team === "black")
+		{
+			this.delPiece(7, 0);
+			this.addPiece(5, 0, tile1.team, "rook");
+		}
+		if (tile2.x-tile1.x < -1 && tile1.team === "black")
+		{
+			this.delPiece(0, 0);
+			this.addPiece(2, 0, tile1.team, "rook");
+		}
+		if (tile2.x-tile1.x > 1 && tile1.team === "white")
+		{
+			this.delPiece(7, 7);
+			this.addPiece(5, 7, tile1.team, "rook");
+		}
+		if (tile2.x-tile1.x < -1 && tile1.team === "white")
+		{
+			this.delPiece(0, 7);
+			this.addPiece(2, 7, tile1.team, "rook");
+		}
+	}
+}
+
+Board.prototype.next = function(team)
+{
+
+
+	function lookahead(board, depth, team)
+	{
+		if (depth === 0)
+		{
+			return;
+		}
+		var pieces = board.getPieces(team);
+		var newpath = [];
+
+		var moves = [];
+		var paths = [];
+		var boards = [];
+		var newboard = [];
+
+		for(var p in pieces)
+		{
+			moves = board.moves(pieces[p]);
+			for(var m in moves)
+			{
+				newpath = [pieces[p], new Piece(moves[m][0], moves[m][1])];
+				newboard = board.copy();
+				newboard.move(newpath[0], newpath[1]);
+				newboard.score();
+
+				boards.push([newpath, newboard.blackScore-newboard.whiteScore]);
+			}
+		}
+		for (var b in boards)
+		{
+			lookahead(boards[b], depth-1, );
+		}
+
+	}
+
+
+
+
+	// var max = 0;
+	// for (var b in boards)
+	// {
+	// 	if (boards[b][1] >= max)
+	// 	{
+	// 		max = boards[b][1];
+	// 	}
+	// }
+	// boards = boards.filter(function(a){return a[1] === max});
+	// for(var b in boards)
+	// {
+	// 	paths.push(boards[b][0]);
+	// }
+	// var path = fisherYates(paths)[0];
+
+	// return path;
+}
+
+function Grid()
+{
+	this.canvas = document.getElementById('pane');
+	this.ctx = this.canvas.getContext('2d');
+
+	this.ctx.font = '60pt Calibri sans-serif';
+	this.ctx.textAlign = 'center';
+	this.ctx.textBaseline = 'middle';
+
+	this.canvasX = Math.round($("#pane").offset().left);
+	this.canvasY = Math.round($("#pane").offset().top);
+
+	this.offsetX = 512;
+	this.offsetY = 64;
+	this.dimension = 8;
+	this.tilesize = 128;
+
+	this.turn = "white";
+	$("title").html(this.turn);
+}
+
+Grid.prototype.clear = function()
+{
+	var canvas = this.canvas;
+	var ctx = this.ctx;
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+	ctx.beginPath();
+	ctx.moveTo(0, 				0); 				ctx.lineTo(0, 				canvas.height);
+	ctx.moveTo(0, 				0); 				ctx.lineTo(canvas.width, 	0);
+	ctx.moveTo(0, 				canvas.height); 	ctx.lineTo(canvas.width, 	canvas.height);
+	ctx.moveTo(canvas.width, 	0); 				ctx.lineTo(canvas.width, 	canvas.height);
+	ctx.stroke();
+
+	ctx.closePath();
+}
+Grid.prototype.draw = function()
+{
+	var ctx = this.ctx;
+	var offsetX = this.offsetX;
+	var offsetY = this.offsetY;
+	var dimension = this.dimension;
+	var tilesize = this.tilesize;
+
+	ctx.beginPath();
+	// for(var i = 0; i <= dimension; i += 1) {ctx.moveTo(offsetX+i*tilesize, offsetY); ctx.lineTo(offsetX+i*tilesize, offsetY+dimension*tilesize);}
+	// for(var j = 0; j <= dimension; j += 1) {ctx.moveTo(offsetX, offsetY+j*tilesize); ctx.lineTo(offsetX+dimension*tilesize, offsetY+j*tilesize);}
+	for(var i = 0; i < dimension; i += 1)
+	{
+		for(var j = 0; j < dimension; j += 1)
+		{
+
+			if ((i % 2 == 0 && j % 2 == 1) || (i % 2 == 1 && j % 2 == 0))
+			{
+				ctx.fillStyle = "gray";
+				ctx.fillRect(offsetX+i*tilesize, offsetY+j*tilesize, tilesize, tilesize);
+			}
+			else
+			{
+				ctx.fillStyle = "darkgray";
+				ctx.fillRect(offsetX+i*tilesize, offsetY+j*tilesize, tilesize, tilesize);
+			}
+		}
+	}
+	ctx.lineWidth = 1;
+	ctx.stroke();
+	ctx.closePath();
+}
+Grid.prototype.setup = function(board)
+{
+	this.board = board;
+}
+Grid.prototype.render = function()
+{
+	var pieces = this.board.pieces;
+	var ctx = this.ctx;
+	var tilesize = this.tilesize;
+
+	for(var i = 0; i < pieces.length; i++)
+	{
+		ctx.fillStyle = pieces[i].team;
+		ctx.fillText(pieces[i].glyph(), this.offsetX + pieces[i].x * tilesize + tilesize/2, this.offsetY + pieces[i].y * tilesize + tilesize/2);
+	}
+}
+Grid.prototype.clean = function()
+{
+	this.clear();
+	this.draw();
+	this.render();
+}
+
+Grid.prototype.play = function()
+{
+	var grid = this;
+	var board = grid.board;
+	var ctx = this.ctx;
+	var offsetX = this.offsetX;
+	var offsetY = this.offsetY;
+	var dimension = this.dimension;
+	var tilesize = this.tilesize;
+
+	var selected = [];
+
+	$(this.canvas).click(function(e)
+	{
+		if (grid.turn === "white")
+		{
+			grid.clean();
+
+			if (selected.length >= 2)
+			{
+				selected = [];
+			}
+
+			canvasX = Math.round($("#pane").offset().left);
+			canvasY = Math.round($("#pane").offset().top);
+
+			var i = Math.floor((e.pageX-canvasX-(offsetX/2))/(tilesize/2));
+			var j = Math.floor((e.pageY-canvasY-(offsetY/2))/(tilesize/2));
+
+			if (selected.length === 0 && !board.hasPiece(i, j)) {selected = []; return;}
+
+			var tile = board.getPiece(i, j);
+			selected.push(tile);
+
+			if (selected[0].team !== grid.turn) {selected = []; return;}
+
+			var moves = [];
+
+			if (selected.length === 1)
+			{
+				for(var s in selected)
+				{
+					ctx.fillStyle = "rgba(255, 0, 0, .25)";
+					ctx.fillRect(offsetX+selected[s].x*tilesize, offsetY+selected[s].y*tilesize, tilesize, tilesize);
+				}
+
+				moves = board.moves(selected[0]);
+
+				for(var m in moves)
+				{
+					ctx.fillStyle = "rgba(0, 0, 255, .25)";
+					ctx.fillRect(offsetX+moves[m][0]*tilesize, offsetY+moves[m][1]*tilesize, tilesize, tilesize);
+				}
+			}
+
+			if (selected.length === 2)
+			{
+				if (selected[0].x === selected[1].x && selected[0].y === selected[1].y) {selected = []; return;}
+
+				var found = false;
+
+				moves = board.moves(selected[0]);
+				for(var m in moves)
+				{
+					if (selected[1].x === moves[m][0] && selected[1].y === moves[m][1])
+					{
+						found = true;
+					}
+				}
+				if (found === false) {return;}
+
+				board.move(selected[0], selected[1]);
+				grid.animate(selected[0], selected[1]);
+
+				if (grid.turn === "white") 	{grid.turn = "black";}
+				else						{grid.turn = "white";}
+				$("title").html(grid.turn);
+			}
+		}
+		else if (grid.turn === "black")
+		{
+
+			var path = board.next(3, "black");
+
+
+			board.move(path[0], path[1]);
+			grid.animate(path[0], path[1]);
+
+			if (grid.turn === "white") 	{grid.turn = "black";}
+			else						{grid.turn = "white";}
+			$("title").html(grid.turn);
+		}
+	});
+}
+Grid.prototype.animate = function(tile1, tile2, mode)
+{
+	var grid = this;
+	var board = this.board;
+	var ctx = this.ctx;
+	var pieces = board.pieces;
+	var offsetX = this.offsetX;
+	var offsetY = this.offsetY;
+	var tilesize = this.tilesize;
+
+	if (mode === "queen") {tile1.type = "queen";}
+	var glyph = tile1.glyph();
+
+	var x1 = offsetX + tile1.x * tilesize + tilesize/2;
+	var y1 = offsetY + tile1.y * tilesize + tilesize/2;
+	var x2 = offsetX + tile2.x * tilesize + tilesize/2;
+	var y2 = offsetY + tile2.y * tilesize + tilesize/2;
+
+	// var d = Math.sqrt(Math.pow(x1 - y1, 2) + Math.pow(x2 - y2, 2));
+
+	var framerate = 20;
+	var dx = (x2 - x1)/framerate;
+	var dy = (y2 - y1)/framerate;
+
+	var i = 0;
+
+	var x = x1;
+	var y = y1;
+
+	var animus = setInterval(function()
+    {
+    	grid.clear();
+    	grid.draw();
+    	grid.render();
+		if ((tile2.x % 2 == 0 && tile2.y % 2 == 1) || (tile2.x % 2 == 1 && tile2.y % 2 == 0))
+		{
+			ctx.fillStyle = "gray";
+			ctx.fillRect(offsetX+tile2.x*tilesize, offsetY+tile2.y*tilesize, tilesize, tilesize);
+		}
+		else
+		{
+			ctx.fillStyle = "darkgray";
+			ctx.fillRect(offsetX+tile2.x*tilesize, offsetY+tile2.y*tilesize, tilesize, tilesize);
+		}
+		ctx.fillStyle = tile1.team;
+
+    	x+=dx;
+    	y+=dy;
+		ctx.fillText(glyph, x, y);
+		i++;
+		if (i === framerate)
+		{
+			clearInterval(animus);
+			grid.clear();
+			grid.draw();
+			grid.render();
+			$(grid.canvas).click();
+		}
+    },
+    50);
+}
+function fisherYates(array)
+{
+	var m = array.length, t, i;
+
+	// While there remain elements to shuffle…
+	while (m)
+	{
+		// Pick a remaining element…
+		i = Math.floor(Math.random() * m--);
+
+		// And swap it with the current element.
+		t = array[m];
+		array[m] = array[i];
+		array[i] = t;
+	}
+	return array;
+}
+function multiplemax(arr, compare)
+{
+	var groups = _.groupBy(arr, compare);
+	var keys = _.keys(groups);
+	var max = _.max(keys);
+	return groups[max];
+}
+$(function()
+{
+	var grid = new Grid();
+	var board = new Board(fresh());
+	grid.setup(board);
+
+	grid.clean();
+	grid.play();
+});
+
+function fresh()
+{
+	var pieces = [];
+	for(var i = 0; i < 8; i++)
+	{
+		for(var j = 0; j < 8; j++)
+		{
+			if 		(j === 0)
+			{
+				if 		(i === 0 || i === 7)	{pieces.push(new Piece(i, j, "black", "rook"));}
+				else if (i === 1 || i === 6)	{pieces.push(new Piece(i, j, "black", "knight"));}
+				else if (i === 2 || i === 5)	{pieces.push(new Piece(i, j, "black", "bishop"));}
+				else if (i === 3) 				{pieces.push(new Piece(i, j, "black", "queen"));}
+				else if (i === 4) 				{pieces.push(new Piece(i, j, "black", "king"));}
+			}
+			else if (j === 1) {pieces.push(new Piece(i, j, "black", "pawn"));}
+			else if (j === 6) {pieces.push(new Piece(i, j, "white", "pawn"));}
+			else if (j === 7)
+			{
+				if 		(i === 0 || i === 7)	{pieces.push(new Piece(i, j, "white", "rook"));}
+				else if (i === 1 || i === 6)	{pieces.push(new Piece(i, j, "white", "knight"));}
+				else if (i === 2 || i === 5)	{pieces.push(new Piece(i, j, "white", "bishop"));}
+				else if (i === 3) 				{pieces.push(new Piece(i, j, "white", "queen"));}
+				else if (i === 4) 				{pieces.push(new Piece(i, j, "white", "king"));}
+			}
+		}
+	}
+	return pieces;
+}
+
+function resize(ctx)
+{
+	var mousedowned = false;
+	$("canvas").mousedown(function(e)
+	{
+		mousedowned = true;
+		ox = e.pageX;
+		oy = e.pageY;
+	});
+	$("canvas").mousemove(function(e)
+	{
+		if (mousedowned == true)
+		{
+			n = (e.pageX - ox) * (e.pageX - ox) + (e.pageY -oy) * (e.pageY - oy);
+			n = Math.sqrt(n);
+			clear(ctx);
+			grid(ctx, x, y, m, n);
+		}
+		else
+		{
+			x = e.pageX;
+			y = e.pageY;
+
+			clear(ctx);
+			grid(ctx, x, y, m, n);
+		}
+	});
+	$("canvas").mouseup(function(e)
+	{
+		mousedowned = false;
+	});
+}
+
+</script>
+</body>
+</html>

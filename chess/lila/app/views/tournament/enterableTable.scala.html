@@ -1,0 +1,40 @@
+@(tours: List[lila.tournament.Enterable], scheduled: Boolean)
+
+@if(!scheduled && tours.isEmpty) {
+<tr class="create">
+  <td>
+    <br />
+    <a href="@routes.Tournament.form()" data-icon="g" class="action button">&nbsp;<span class="trans_me">@trans.createANewTournament.en()</span></a>
+    <br />
+    <br />
+  </td>
+</tr>
+} else {
+@tours.filter(_.scheduled == scheduled).map { tour =>
+<tr @if(scheduled) { class="scheduled" }>
+  <td>
+    <a data-icon="g" href="@routes.Tournament.show(tour.id)">&nbsp;@tour.name</a>
+  </td>
+  @tour.schedule.map { s =>
+  <td>@momentFromNow(s.at)</td>
+  }.getOrElse {
+  <td class="small">
+    <span data-icon="p">&nbsp;@tour.clock.show</span>
+    @if(tour.variant.exotic) {
+    [960]
+    }
+    @if(tour.rated) {
+    <span class="trans_me">@trans.rated.en()</span>
+    }
+  </td>
+  }
+  <td>@tour.durationString</td>
+  <td data-icon="r">&nbsp;@tour.playerRatio</td>
+  <td>
+    <form action="@routes.Tournament.join(tour.id)" method="POST">
+      <button type="submit" class="submit button trans_me" data-icon="G"></button>
+    </form>
+  </td>
+</tr>
+}
+}

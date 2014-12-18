@@ -1,0 +1,66 @@
+@(games: Seq[Game], user: Option[User] = None, ownerLink: Boolean = false, mini: Boolean = false)(implicit ctx: Context)
+
+@games.map { g =>
+<div class="game_row paginated_element clearfix">
+  @defining(user flatMap g.player) { fromPlayer =>
+  @defining(fromPlayer | g.firstPlayer ) { firstPlayer =>
+  @gameFen(g, firstPlayer.color, ownerLink)
+  <div class="infos">
+    @bookmark.toggle(g)
+    @if(g.isBeingPlayed) {
+    <a class="link" href="@routes.Round.watcher(g.id, firstPlayer.color.name)" data-icon="v"> @trans.playingRightNow()</a>,
+    } else {
+    @momentFormat(g.createdAt)
+    }
+    @if(g.finishedOrAborted) {
+    @gameEndStatus(g)
+    @g.winner.map { winner =>
+    , <span class="@{ fromPlayer.map(p => (p == winner).fold("win", "loss")) }">
+      @winner.color.fold(trans.whiteIsVictorious(), trans.blackIsVictorious())
+    </span>
+    }
+    } else {
+    @g.turnColor.fold(trans.whitePlays(), trans.blackPlays())
+    }
+    @if(g.variant.exotic) {
+    <br />
+    @trans.variant(): <strong>@variantName(g.variant)</strong>
+    }
+    @g.pgnImport.flatMap(_.date).map { date =>
+    <br />
+    PGN Import @date
+    @g.pgnImport.flatMap(_.user).map { user =>
+    - @userIdLinkMini(user)
+    }
+    }
+    <br /><br />
+    <table class="game_players">
+      @List(g.opponent(firstPlayer), firstPlayer).map { p =>
+      <tr>
+        <td><span class="color @p.color.name">@p.color.fold(trans.white(), trans.black())</span></td>
+        <td>@playerLink(p)</td>
+      </tr>
+      }
+    </table>
+    <br />
+    @g.clock.map { c =>
+    <span data-icon="p"> @clockName(c)</span>
+    <br /><br />
+    }
+    @g.tournamentId.map { tourId =>
+    <a data-icon="g" href="@routes.Tournament.show(tourId)">&nbsp;@trans.tournament()</a>
+    <br />
+    }
+    @g.poolId.flatMap(poolSetups.get).map { p =>
+    <a data-icon="8" href="@routes.Pool.show(p.id)">&nbsp;@p.name Pool</a>
+    <br />
+    }
+    @if(g.rated) {
+    @trans.thisGameIsRated()
+    <br /><br />
+    }
+  </div>
+  }
+  }
+</div>
+}

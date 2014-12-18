@@ -1,0 +1,128 @@
+@(u: User, spy: lila.security.UserSpy, eval: Option[lila.evaluation.Evaluation])(implicit ctx: Context)
+
+<div class="actions clearfix">
+  @if(isGranted(_.UserEvaluate)) {
+  <form method="post" action="@routes.User.evaluate(u.username)">
+    <input class="button" type="submit" value="@{eval.isDefined.??("(Re)")}Evaluate" />
+  </form>
+  }
+  @if(isGranted(_.MarkEngine)) {
+  <form method="post" action="@routes.Mod.engine(u.username)">
+    <input class="confirm button" type="submit" value="@u.engine.fold("Un-engine", "Engine")" />
+  </form>
+  }
+  @if(isGranted(_.MarkTroll)) {
+  <form method="post" action="@routes.Mod.troll(u.username)">
+    <input class="confirm button" type="submit" value="@u.troll.fold("Un-troll", "Troll")" />
+  </form>
+  }
+  @if(isGranted(_.IpBan)) {
+  <form method="post" action="@routes.Mod.ban(u.username)">
+    <input class="confirm button" type="submit" value="@u.ipBan.fold("Revoke IP ban", "IP ban")" />
+  </form>
+  }
+  @if(!u.disabled) {
+  @if(isGranted(_.CloseAccount)) {
+  <form method="post" action="@routes.Mod.closeAccount(u.username)">
+    <input class="confirm button" type="submit" value="Close" />
+  </form>
+  }
+  } else {
+  @if(isGranted(_.ReopenAccount)) {
+  <form action="@routes.Mod.reopenAccount(u.username)" method="post">
+    <input type="submit" class="button confirm" value="Reopen" />
+  </form>
+  }
+  }
+  @if(isGranted(_.SetTitle)) {
+  <form class="fide_title" method="post" action="@routes.Mod.setTitle(u.username)">
+    @base.select(lila.user.DataForm.title.fill(u.title)("title"), lila.user.User.titles, "No FIDE title".some)
+  </form>
+  }
+</div>
+
+<div class="user_spy">
+  @eval.map { e =>
+  <div class="evaluation">
+    <p>
+      <strong>@e.verdict(u.perfs)</strong> @e.isDeep.fold("Thoroughly", "Quickly") evaluated @momentFromNow(e.date) as @e.percent%
+      <br />
+      <br />
+    </p>
+    @if(e.games.nonEmpty) {
+    <table class="slist">
+      <thead>
+        <tr>
+          <th>Most suspicious games found</th>
+          <th>Move time</th>
+          <th>Blur</th>
+          <th>Analysis</th>
+        </tr>
+      </thead>
+      <tbody>
+        @e.games.map { g =>
+        <tr>
+          <td><a href="@g.url">@g.url</a></td>
+          <td>@g.moveTime.map(_ + "%")</td>
+          <td>@g.blur.map(_ + "%")</td>
+          <td>@g.error.map(_ + "%")</td>
+        </tr>
+        }
+      </tbody>
+    </table>
+    }
+  </div>
+  }
+  @if(spy.otherUsers.size < 2) {
+  <strong>No user found with same IPs</strong>
+  } else {
+  <table class="others slist">
+    <thead>
+      <tr>
+        <th>@spy.otherUsers.size user(s) sharing IPs</th>
+        <th>Games</th>
+        <th>Engine</th>
+        <th>Troll</th>
+        <th>IPban</th>
+        <th>Closed</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      @spy.otherUsers.map { o =>
+      <tr @if(o == u){class="same"}>
+        <td>@userLink(o, mod = true)</td>
+        <td>@o.count.game</td>
+        <td>@if(o.engine){ENGINE}</td>
+        <td>@if(o.troll){TROLL}</td>
+        <td>@if(o.ipBan){IPBAN}</td>
+        <td>@if(o.disabled){CLOSED}</td>
+        <td>@momentFromNow(o.createdAt)</td>
+      </tr>
+      }
+    </tbody>
+  </table>
+  }
+  <div class="listings clearfix">
+    <div class="spy_ips">
+      <strong>@spy.ips.size IP addresses</strong> <ul>@spy.ipsByLocations.map {
+        case (location, ips) => {
+        <li>
+          <p>@location</p>
+          <ul>
+            @ips.map { ip =>
+            <li@if(ip.blocked) { class="blocked" }>@ip.ip</li>
+            }
+          </ul>
+        </li>
+        }
+        }
+      </ul>
+    </div>
+    <div class="spy_uas">
+      <strong>@spy.uas.size User agent(s)</strong> <ul>@spy.uas.sorted.map { ua =>
+        <li>@ua</li>
+        }</ul>
+    </div>
+  </div>
+</div>

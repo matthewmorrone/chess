@@ -1,0 +1,30 @@
+@(move: Field, gameId: Field, captcha: lila.common.Captcha)(implicit ctx: Context)
+
+<input type="hidden" name="@gameId.name" id="@gameId.id" value="@captcha.gameId" />
+@if(ctx.blindMode) {
+<input type="hidden" name="@move.name" id="@move.id" value="@captcha.solutions.head" />
+} else {
+<div class="checkmateCaptcha clearfix" data-check-url="@routes.Main.captchaCheck(captcha.gameId)">
+  <div class="checkmateFen">
+    <div
+      class="mini_board parse_fen with_keys"
+      data-color="@captcha.white.fold("white", "black")"
+      data-fen="@captcha.fen"></div>
+  </div>
+  <div class="checkmateSection">
+    <label>
+      <strong>@trans.colorPlaysCheckmateInOne(captcha.white.fold(trans.white, trans.black)())</strong><br />
+      <br />
+      @trans.thisIsAChessCaptcha()<br />
+      @trans.clickOnTheBoardToMakeYourMove()
+      <br /><br />
+      @defining(netBaseUrl + routes.Round.watcher(captcha.gameId, captcha.white.fold("white", "black"))) { url =>
+      Help: <a class="hint--bottom" data-hint="View the solution" target="_blank" href="@url">@url</a>
+      }
+      <div class="result success" data-icon="E"> @trans.checkmate()</div>
+      <div class="result failure" data-icon="k"> @trans.notACheckmate()<br /><button class="button retry">@trans.retry()</button></div>
+    </label>
+    <input type="hidden" name="@move.name" id="@move.id" value="" />
+  </div>
+</div>
+}

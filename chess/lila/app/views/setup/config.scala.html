@@ -1,0 +1,22 @@
+@(form: Form[_], typ: String, title: Html, route: Call, fields: Html, error: Option[Html] = None)(implicit ctx: Context)
+
+<div class="lichess_overboard auto_center game_config game_config_@typ">
+  <a href="@routes.Lobby.home" class="close icon" title="@trans.cancel()" data-icon="L"></a>
+  <h2>@title</h2>
+  @error.map { e =>
+  <p class="error">@e</p>
+  <br />
+  <a href="@routes.Lobby.home" class="button" data-icon="L">&nbsp;@trans.cancel()</a>
+  }.getOrElse {
+  <div class="game_config_form">
+    @helper.form(action = route, 'novalidate -> "novalidate") {
+    @fields
+    <div class="color_submits">
+      @List("black" -> trans.black(), "random" -> trans.randomColor(), "white" -> trans.white()).map { color =>
+      <button data-hint="@color._2" type="submit" class="submit hint--bottom @color._1" name="@form("color").id" value="@color._1"></button>
+      }
+    </div>
+    }
+  </div>
+  }
+</div>

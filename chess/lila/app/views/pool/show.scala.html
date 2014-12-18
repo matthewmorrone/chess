@@ -1,0 +1,63 @@
+@(p: lila.pool.Pool, version: Int, chat: Option[lila.chat.UserChat], pov: Option[Pov])(implicit ctx: Context)
+
+@goodies = {
+<div class="lichess_goodies">
+  <div class="box">
+    <span data-icon="p"> @(p.setup.clockLimit / 60) + @p.setup.clockIncrement</span>,
+    @variantName(p.setup.variant).capitalize, @trans.rated() -
+    <a href="@routes.Pool.help(p.setup.id)">Help</a>
+    @ctx.me.map(_.perfs.pool(p.setup.id)).map { perf =>
+    <br />
+    <br />
+    @trans.ratingX(s"""<strong>${perf.intRating}</strong> <small class="hint--bottom" data-hint="Glicko rating deviation"> ±${perf.glicko.intDeviationDoubled}</small>""")
+    <br />
+    <strong>@perf.nb</strong> @trans.gamesPlayed()
+    }
+  </div>
+</div>
+}
+
+@underchat = {
+<div class="watchers" data-icon="v">
+  <span class="list inline_userlist"></span>
+</div>
+}
+
+@base.layout(
+title = s"${p.setup.name} pool",
+moreCss = cssTag("pool.css"),
+goodies = goodies.some,
+chat = chat.map(c => base.chat(c, trans.chatRoom.str())),
+underchat = underchat.some) {
+
+<div id="pool"
+  data-id="@p.setup.id"
+  data-version="@version"
+  data-socket-url="@routes.Pool.websocket(p.setup.id)"
+  data-href="@routes.Pool.reload(p.setup.id)">
+  <div class="pool_side scroll-shadow">
+    @side(p)
+  </div>
+  <div class="content_box no_padding pool_box pool_show">
+    <h1 data-icon="8">
+      @p.setup.name Pool
+      @if(ctx.me ?? p.contains) {
+      <form action="@routes.Pool.leave(p.setup.id)" method="post">
+        <button class="button" data-icon="F">&nbsp;Leave pool</button>
+      </form>
+      } else {
+      <form action="@routes.Pool.enter(p.setup.id)" method="post">
+        <button class="button" data-icon="G">&nbsp;Enter pool</button>
+      </form>
+      }
+    </h1>
+    @pov.map { p =>
+    <a class="is pov button glowing" href="@routes.Round.player(p.fullId)">
+      You are playing @usernameOrAnon(p.opponent.userId)
+      <span class="pov_join" data-icon="G">&nbsp;@trans.joinTheGame()</span>
+    </a>
+    }
+    @pool.standing(p)
+  </div>
+</div>
+}
