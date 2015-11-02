@@ -1,3 +1,0 @@
-package lila
-
-package object blog extends PackageObject with WithPlay

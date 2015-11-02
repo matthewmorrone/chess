@@ -1,7 +1,0 @@
-#!/bin/sh
-
-mkdir -p public/compiled
-rm public/compiled/puzzle.js
-cd cljs/puzzle
-lein cljsbuild once prod
-cd -
