@@ -1,122 +1,139 @@
 var MAX_SEARCH_DEPTH_LIMIT = 3;
 var MAX_SEARCH_TIME_LIMIT = 500; // ms
 
-var values = {
-	'pieces': {'p': 33, 'r': 41, 'n': 37, 'b': 37, 'q': 45, 'k': 49},
-	'ranks': [undefined, 1, 2, 4, 4, 4, 4, 2, 1],
-	'files': {'a': 1, 'b': 1, 'c': 1, 'd': 2, 'e': 2, 'f': 1, 'g': 1, 'h': 1}
-};
+var PIECE_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
 
 var searchStartTS;
+var searchTimedOut;
 
-function evalBoard(ctx, color) {
-	return score(ctx, color) - score(ctx, opponent(color));
+function pieceValue(type) {
+	return PIECE_VALUES[type];
 }
 
-function evalMove(ctx, move, depth, color) {
-	!depth && (depth = 0);
+// Small centralization bonus so the AI doesn't sit passively on the back rank.
+function centerBonus(square) {
+	var file = square.charCodeAt(0) - 97;
+	var rank = parseInt(square.charAt(1), 10) - 1;
+	var df = Math.min(file, 7 - file);
+	var dr = Math.min(rank, 7 - rank);
+	return (df + dr) * 2;
+}
 
-	var max, min, value, moves, capture, captureVal;
+// Material + light positional score of the whole board, from White's point of view.
+function evalBoard(chess) {
+	var rows = chess.board();
+	var total = 0;
 
-	value = evalPiece(move.piece);
+	for (var r = 0; r < 8; r++) {
+		for (var f = 0; f < 8; f++) {
+			var cell = rows[r][f];
+			if (!cell) continue;
 
-	if (move.color == color && ctx.attacked(opponent(color), ctx.SQUARES[move.to])) {
-		capture = ctx.get(move.to);
-		captureVal = capture && evalPiece(capture);
-		if (!capture || captureVal < value) {
-			return (capture ? captureVal : 0) - value;
+			var square = String.fromCharCode(97 + f) + (8 - r);
+			var value = pieceValue(cell.type) + centerBonus(square);
+
+			total += cell.color === 'w' ? value : -value;
 		}
 	}
 
-	ctx.move(move.san);
-
-	moves = ctx.moves({'verbose': true});
-
-	var i, len, el;
-	for (i = -1, len = moves.length; ++i < len;) {
-		if (depth + 1 < MAX_SEARCH_DEPTH_LIMIT && (new Date).getTime() - searchStartTS < MAX_SEARCH_TIME_LIMIT) {
-			el = evalMove(ctx, moves[i], depth + 1, color);
-		}
-		else {
-			ctx.move(moves[i].san);
-			el = evalBoard(ctx, color);
-			ctx.undo();
-		}
-
-		(!max || el > max) && (max = el);
-		(!min || el < min) && (min = el);
-	};
-
-	ctx.undo();
-
-	return ctx.turn() != color ? max : min;
+	return total;
 }
 
-function evalPiece(piece) {
-	return values.pieces[piece.toLowerCase()];
+// Score for a single side; used by the UI's live eval readout.
+function score(chess, color) {
+	var value = evalBoard(chess);
+	return color === 'w' ? value : -value;
 }
 
-function evalSquare(ctx, square, color) {
-	var value = 0,
-	file = square.charAt(0),
-	rank = square.charAt(1),
-
-	locValue = values.ranks[rank] + values.files[file],
-
-	piece = ctx.get(square),
-	pieceVal = piece && this.evalPiece(piece),
-	ownPiece = piece && (color == piece.toUpperCase() == piece && 'w' || 'b'),
-	oppPiece = piece && !ownPiece;
-
-
-	oppAttack = ctx.attacked(opponent(color), ctx.SQUARES[square]),
-	ownAttack = ctx.attacked(color, ctx.SQUARES[square]);
-
-	value += (ownPiece && (!oppAttack || ownAttack)) && (pieceVal) || 0;
-
-	value += (!piece && ownAttack && !oppAttack) && locValue || 0;
-	value -= (!piece && oppAttack && !ownAttack) && locValue || 0;
-
-	value += (oppPiece && !oppAttack && ownAttack) && pieceVal || 0;
-	value -= (ownPiece && oppAttack) && pieceVal || 0;
-
-	return value;
+function timeIsUp() {
+	if (!searchTimedOut) {
+		searchTimedOut = (new Date()).getTime() - searchStartTS >= MAX_SEARCH_TIME_LIMIT;
+	}
+	return searchTimedOut;
 }
 
-function opponent(color) {
-	return color == 'w' && 'b' || 'w';
-}
-
-function score(ctx, color) {
-	var ret = 0,
-	pieces = ctx.fen().replace(/\s.*/, '').match(color == 'b' && /[prnbqk]/g || /[PRNBGQK]/g);
-
-	var i, len;
-	for (i = -1, len = pieces.length; ++i < len;) {
-		ret += values.pieces[pieces[i].toLowerCase()];
-
-		ret += values.pieces[pieces[i].toLowerCase()];
-	};
-
-	for (square in ctx.SQUARES) {
-		ret += evalSquare(ctx, square, color);
+// Negamax with alpha-beta pruning. Always draws candidate moves from
+// chess.moves(), which chess.js already restricts to legal moves - so
+// there is no way for this to hand back a castle that's illegal because
+// the king is in, through, or ends up in check.
+function negamax(chess, depth, alpha, beta) {
+	if (depth === 0 || timeIsUp()) {
+		var perspective = chess.turn() === 'w' ? 1 : -1;
+		return perspective * evalBoard(chess);
 	}
 
-	return ret;
+	var moves = chess.moves();
+	if (moves.length === 0) {
+		return chess.in_checkmate() ? -100000 - depth : 0;
+	}
+
+	var best = -Infinity;
+	for (var i = 0; i < moves.length; i++) {
+		chess.move(moves[i]);
+		var value = -negamax(chess, depth - 1, -beta, -alpha);
+		chess.undo();
+
+		if (value > best) {
+			best = value;
+		}
+		if (best > alpha) {
+			alpha = best;
+		}
+		if (alpha >= beta || timeIsUp()) {
+			break;
+		}
+	}
+
+	return best;
 }
 
-function search(ctx, verbose) {
-	var moves = ctx.moves({'verbose': true});
+// Iterative deepening: search depth 1, then 2, then 3 (or until the time
+// budget runs out), keeping the best move found by the deepest completed
+// pass. This is what actually fixes "the depth search sucks so bad" -
+// the old eval scanned all 64 squares with attacked() checks per node,
+// which made anything past depth 1 unusably slow.
+function search(chess, verbose) {
+	var moves = chess.moves({ verbose: true });
+	if (moves.length === 0) {
+		return null;
+	}
 
-	searchStartTS = (new Date).getTime();
+	searchStartTS = (new Date()).getTime();
+	searchTimedOut = false;
 
-	var i, len, el, min, max, best;
-	for (i = -1, len = moves.length; ++i < len;) {
-		el = evalMove(ctx, moves[i], 1, ctx.turn());
-		(!max || el > max[0]) && (max = [el, moves[i]]);
-	};
+	var best = moves[0];
 
-	return verbose ? max[1] : max[1].san;
+	for (var depth = 1; depth <= MAX_SEARCH_DEPTH_LIMIT; depth++) {
+		var depthBest = null;
+		var depthBestValue = -Infinity;
+		var alpha = -Infinity, beta = Infinity;
+
+		for (var i = 0; i < moves.length; i++) {
+			chess.move(moves[i]);
+			var value = -negamax(chess, depth - 1, -beta, -alpha);
+			chess.undo();
+
+			if (value > depthBestValue) {
+				depthBestValue = value;
+				depthBest = moves[i];
+			}
+			if (depthBestValue > alpha) {
+				alpha = depthBestValue;
+			}
+			if (timeIsUp()) {
+				break;
+			}
+		}
+
+		if (depthBest) {
+			best = depthBest;
+		}
+		if (timeIsUp()) {
+			break;
+		}
+	}
+
+	return verbose ? best : best.san;
 }
 
 function setSearchTimeLimit(ms) {
@@ -125,11 +142,11 @@ function setSearchTimeLimit(ms) {
 
 var AI = {
 	'evalBoard': evalBoard,
-	'evalMove': evalMove,
-	'evalPiece': evalPiece,
-	'evalSquare': evalSquare,
-	'opponent': opponent,
 	'score': score,
 	'search': search,
 	'setSearchTimeLimit': setSearchTimeLimit
+};
+
+if (typeof module !== 'undefined' && module.exports) {
+	module.exports = AI;
 }

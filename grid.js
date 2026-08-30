@@ -196,26 +196,10 @@ Grid.prototype.play = function() {
 		}
 		else if (grid.turn === "b") {
 
-			moves = board.chess.moves({verbose: true})
-
 			var title = document.title
 			document.title = 'thinking...'
-			// var choice = AI.search(board.chess, true), max = 0
-			var choice = _.sample(moves), max = 0
+			var choice = AI.search(board.chess, true)
 			document.title = title
-
-			$.each(moves, function(m, move) {
-				board.chess.move(move)
-				board.whiteScore = AI.score(board.chess, 'w')
-				board.blackScore = AI.score(board.chess, 'b')
-				if ((board.blackScore - board.whiteScore) > max) {
-
-					choice = move
-					max = board.blackScore - board.whiteScore
-				}
-
-				board.chess.undo()
-			})
 
 			var tile1 = new Piece(choice.from.charCodeAt(0)-97, 8-parseInt(choice.from[1], 10), choice.color, choice.piece)
 			var tile2 = new Piece(choice.to.charCodeAt(0)-97,	 8-parseInt(choice.to[1], 10),	 choice.color, choice.piece)
@@ -224,6 +208,9 @@ Grid.prototype.play = function() {
 			log(tile1, tile2)
 			board.move(tile1, tile2)
 			board.chess.move(choice)
+
+			board.whiteScore = AI.score(board.chess, 'w')
+			board.blackScore = AI.score(board.chess, 'b')
 
 			grid.animate(tile1, tile2)
 
